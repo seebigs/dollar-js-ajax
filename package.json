@@ -1,0 +1,33 @@
+{
+  "name": "dollar-js-ajax",
+  "version": "1.0.0",
+  "description": "DollarJS Ajax Plugin",
+  "keywords": [
+    "$",
+    "ajax",
+    "jquery"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/seebigs/dollar-js-ajax.git"
+  },
+  "bugs": {
+    "url": "https://github.com/seebigs/dollar-js-ajax/issues"
+  },
+  "main": "prebuilt/dollar.ajax.js",
+  "scripts": {
+    "build": "node bundl",
+    "prepublish": "node prepublish",
+    "test": "node bundl test"
+  },
+  "devDependencies": {
+    "bundl": "^0.10.4",
+    "bundl-minify": "^1.1.0",
+    "bundl-rename": "^1.2.0",
+    "bundl-wrap": "^1.0.1",
+    "bundl-write": "^1.1.0",
+    "dollar-js": "^1.3.3",
+    "feather-test-browser": "^1.2.0"
+  }
+}
