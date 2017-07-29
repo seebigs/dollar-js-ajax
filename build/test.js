@@ -14,6 +14,7 @@ bundl.task('test:unit', function (done) {
             '../test/helpers/plugin_setup.js',
         ],
         specs: '../test/specs/' + (category || '') + (run || ''),
+        exitProcessWhenFailing: false,
     });
 
     featherTest.run(done);

@@ -4,8 +4,8 @@
  *   Released under the MIT license: https://opensource.org/licenses/MIT
  */
 
-;(function () {
+;(function (root) {
 
 <%= contents %>
 
-}.call(this));
+})(typeof window !== 'undefined' ? window : this);
