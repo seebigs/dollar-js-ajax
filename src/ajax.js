@@ -11,6 +11,15 @@ function ajax (url, settings) {
         opt = url;
     }
 
+    if (typeof opt.url !== 'string') {
+        opt.url = '';
+    }
+
+    opt.data = opt.data || {};
+    if (opt.cache === false) {
+        opt.data._ = Date.now();
+    }
+
     if (typeof opt.success !== 'function') {
         opt.success = function(){};
     }
@@ -30,7 +39,24 @@ function ajax (url, settings) {
         xml: 'application/xml',
     };
 
-    fetch(opt.url)
+    var initOptions = {
+        method: opt.method || 'get',
+    };
+
+    if (typeof opt.headers === 'object') {
+        initOptions.headers = opt.headers;
+    }
+
+    if (initOptions.method === 'get') {
+        var searchString = serialize(opt.data);
+        if (searchString.length) {
+            opt.url += (opt.url.slice(-1) === '?' ? '' : '?') + searchString;
+        }
+    } else {
+        initOptions.body = typeof opt.data === 'object' ? JSON.stringify(opt.data) : opt.data;
+    }
+
+    fetch(opt.url, initOptions)
         .then(function (response) {
             if (response && response.ok) {
                 var contentType = opt.dataType ? dataTypes[opt.dataType] : response.headers.get('Content-Type');

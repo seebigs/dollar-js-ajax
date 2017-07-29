@@ -31,6 +31,7 @@ let wrapOptions = {
 bundl.task('build', function (done) {
     var lib = [
         './natives.js',
+        './serialize.js',
         './ajax.js',
         './options.js',
         './get.js',
