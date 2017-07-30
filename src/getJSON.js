@@ -2,8 +2,12 @@
 /*  $.getJSON()  */
 /*****************/
 
+var ajax = require('./ajax.js');
+var parseOptions = require('./parseOptions.js');
+
 function getJSON (url, data, success) {
-    var opt = getOptions(url, data, success);
-    opt.dataType = 'json';
-    ajax(opt);
+    var opt = parseOptions(url, data, success, 'json');
+    return ajax(opt);
 }
+
+module.exports = getJSON;

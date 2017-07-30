@@ -1,5 +1,5 @@
 const bundl = require('bundl');
-
+const bundlPack = require('bundl-pack');
 const minify = require('bundl-minify');
 const packageJSON = require('../package.json');
 const rename = require('bundl-rename');
@@ -7,7 +7,6 @@ const wrap = require('bundl-wrap');
 const write = require('bundl-write');
 
 let options = {
-    srcDir: '../src',
     outputDir: '../prebuilt',
     quiet: true
 };
@@ -29,19 +28,8 @@ let wrapOptions = {
 };
 
 bundl.task('build', function (done) {
-    var lib = [
-        './natives.js',
-        './serialize.js',
-        './ajax.js',
-        './options.js',
-        './get.js',
-        './post.js',
-        './getJSON.js',
-        './getScript.js',
-        '../export.js'
-    ];
-
-    var b = bundl({ 'dollar.ajax.js': lib }, options)
+    var b = bundl({ 'dollar.ajax.js': '../index.js' }, options)
+        .then(bundlPack())
         .then(wrap(wrapOptions))
         .then(write())
         .then(minify(minifyOptions))

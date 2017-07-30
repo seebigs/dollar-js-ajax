@@ -1,8 +1,8 @@
 /*****************/
-/*  getOptions  */
+/*  parseOptions  */
 /*****************/
 
-function getOptions (url, data, success, dataType) {
+function parseOptions (url, data, success, dataType) {
     var options = {};
 
     if (typeof url === 'object') {
@@ -31,3 +31,5 @@ function getOptions (url, data, success, dataType) {
 
     return options;
 }
+
+module.exports = parseOptions;

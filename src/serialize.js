@@ -20,3 +20,5 @@ function serialize (params) {
 
     return '';
 }
+
+module.exports = serialize;

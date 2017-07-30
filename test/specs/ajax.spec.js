@@ -3,8 +3,7 @@ describe('$.ajax', function () {
 
     describe('fetches json', function (expect, done) {
         var testUrl = 'https://httpbin.org/anything';
-        $.ajax({
-            url: testUrl,
+        $.ajax(testUrl, {
             data: { one: 1, two: 2 },
             headers: {
                 'Custom-Stuff': 'here',

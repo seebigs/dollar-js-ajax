@@ -1,44 +1,51 @@
 /*!
  * DollarJS Ajax Plugin 1.0.0
+ *   Extends window.$ with ajax functionality
  *   Github: https://github.com/seebigs/dollar-js-ajax
  *   Released under the MIT license: https://opensource.org/licenses/MIT
  */
 
-;(function (root) {
+;(function(global, window, document){
+/**/require([
+/***/[function (require, module, exports) {
+/*** [0] /Users/intent/Projects/dollar-js-ajax/index.js ***/
 
-/*****************/
-/*    NATIVES    */
-/*****************/
+/****************/
+/*  INTERFACE  */
+/****************/
 
-root.Promise = root.Promise || require('promise-polyfill');
-var fetch = root.fetch || require('whatwg-fetch');
+var $ajax = {
+    ajax: require('./src/ajax.js'),
+    get: require('./src/get.js'),
+    post: require('./src/post.js'),
+    getJSON: require('./src/getJSON.js'),
+    getScript: require('./src/getScript.js'),
+};
 
-/*****************/
-/*   serialize   */
-/*****************/
-
-function serialize (params) {
-    var paramsType = typeof params;
-
-    if (paramsType === 'object') {
-        var arr = [];
-        for (key in params) {
-            if (params.hasOwnProperty(key)) {
-                arr.push(encodeURIComponent(key) + '=' + encodeURIComponent(params[key]));
-            }
+var $ = (typeof global !== 'undefined' ? global : window).$ || {};
+if ($.isDollar) {
+    for (method in $ajax) {
+        if ($ajax.hasOwnProperty(method)) {
+            $[method] = $ajax[method];
         }
-        return arr.join('&');
-
-    } else if (paramsType === 'string') {
-        return params;
     }
-
-    return '';
 }
+
+module.exports = $ajax;
+
+
+
+/***/},{"./src/ajax.js":1,"./src/get.js":5,"./src/post.js":7,"./src/getJSON.js":8,"./src/getScript.js":9}],
+/***/[function (require, module, exports) {
+/*** [1] /Users/intent/Projects/dollar-js-ajax/src/ajax.js ***/
 
 /*****************/
 /*   $.ajax()   */
 /*****************/
+
+global.Promise = global.Promise || require('promise-polyfill');
+var fetch = global.fetch || require('whatwg-fetch').fetch;
+var serialize = require('./serialize.js');
 
 function ajax (url, settings) {
     var opt = typeof settings === 'object' ? settings : {};
@@ -78,7 +85,7 @@ function ajax (url, settings) {
     };
 
     var initOptions = {
-        method: opt.method || 'get',
+        method: opt.method || opt.type || 'get',
     };
 
     if (typeof opt.headers === 'object') {
@@ -94,7 +101,7 @@ function ajax (url, settings) {
         initOptions.body = typeof opt.data === 'object' ? JSON.stringify(opt.data) : opt.data;
     }
 
-    fetch(opt.url, initOptions)
+    return fetch(opt.url, initOptions)
         .then(function (response) {
             if (response && response.ok) {
                 var contentType = opt.dataType ? dataTypes[opt.dataType] : response.headers.get('Content-Type');
@@ -120,11 +127,779 @@ function ajax (url, settings) {
         });
 }
 
+module.exports = ajax;
+
+
+
+/***/},{"promise-polyfill":2,"whatwg-fetch":3,"./serialize.js":4}],
+/***/[function (require, module, exports) {
+/*** [2] /Users/intent/Projects/dollar-js-ajax/node_modules/promise-polyfill/promise.js ***/
+
+(function (root) {
+
+  // Store setTimeout reference so promise-polyfill will be unaffected by
+  // other code modifying setTimeout (like sinon.useFakeTimers())
+  var setTimeoutFunc = setTimeout;
+
+  function noop() {}
+  
+  // Polyfill for Function.prototype.bind
+  function bind(fn, thisArg) {
+    return function () {
+      fn.apply(thisArg, arguments);
+    };
+  }
+
+  function Promise(fn) {
+    if (typeof this !== 'object') throw new TypeError('Promises must be constructed via new');
+    if (typeof fn !== 'function') throw new TypeError('not a function');
+    this._state = 0;
+    this._handled = false;
+    this._value = undefined;
+    this._deferreds = [];
+
+    doResolve(fn, this);
+  }
+
+  function handle(self, deferred) {
+    while (self._state === 3) {
+      self = self._value;
+    }
+    if (self._state === 0) {
+      self._deferreds.push(deferred);
+      return;
+    }
+    self._handled = true;
+    Promise._immediateFn(function () {
+      var cb = self._state === 1 ? deferred.onFulfilled : deferred.onRejected;
+      if (cb === null) {
+        (self._state === 1 ? resolve : reject)(deferred.promise, self._value);
+        return;
+      }
+      var ret;
+      try {
+        ret = cb(self._value);
+      } catch (e) {
+        reject(deferred.promise, e);
+        return;
+      }
+      resolve(deferred.promise, ret);
+    });
+  }
+
+  function resolve(self, newValue) {
+    try {
+      // Promise Resolution Procedure: https://github.com/promises-aplus/promises-spec#the-promise-resolution-procedure
+      if (newValue === self) throw new TypeError('A promise cannot be resolved with itself.');
+      if (newValue && (typeof newValue === 'object' || typeof newValue === 'function')) {
+        var then = newValue.then;
+        if (newValue instanceof Promise) {
+          self._state = 3;
+          self._value = newValue;
+          finale(self);
+          return;
+        } else if (typeof then === 'function') {
+          doResolve(bind(then, newValue), self);
+          return;
+        }
+      }
+      self._state = 1;
+      self._value = newValue;
+      finale(self);
+    } catch (e) {
+      reject(self, e);
+    }
+  }
+
+  function reject(self, newValue) {
+    self._state = 2;
+    self._value = newValue;
+    finale(self);
+  }
+
+  function finale(self) {
+    if (self._state === 2 && self._deferreds.length === 0) {
+      Promise._immediateFn(function() {
+        if (!self._handled) {
+          Promise._unhandledRejectionFn(self._value);
+        }
+      });
+    }
+
+    for (var i = 0, len = self._deferreds.length; i < len; i++) {
+      handle(self, self._deferreds[i]);
+    }
+    self._deferreds = null;
+  }
+
+  function Handler(onFulfilled, onRejected, promise) {
+    this.onFulfilled = typeof onFulfilled === 'function' ? onFulfilled : null;
+    this.onRejected = typeof onRejected === 'function' ? onRejected : null;
+    this.promise = promise;
+  }
+
+  /**
+   * Take a potentially misbehaving resolver function and make sure
+   * onFulfilled and onRejected are only called once.
+   *
+   * Makes no guarantees about asynchrony.
+   */
+  function doResolve(fn, self) {
+    var done = false;
+    try {
+      fn(function (value) {
+        if (done) return;
+        done = true;
+        resolve(self, value);
+      }, function (reason) {
+        if (done) return;
+        done = true;
+        reject(self, reason);
+      });
+    } catch (ex) {
+      if (done) return;
+      done = true;
+      reject(self, ex);
+    }
+  }
+
+  Promise.prototype['catch'] = function (onRejected) {
+    return this.then(null, onRejected);
+  };
+
+  Promise.prototype.then = function (onFulfilled, onRejected) {
+    var prom = new (this.constructor)(noop);
+
+    handle(this, new Handler(onFulfilled, onRejected, prom));
+    return prom;
+  };
+
+  Promise.all = function (arr) {
+    var args = Array.prototype.slice.call(arr);
+
+    return new Promise(function (resolve, reject) {
+      if (args.length === 0) return resolve([]);
+      var remaining = args.length;
+
+      function res(i, val) {
+        try {
+          if (val && (typeof val === 'object' || typeof val === 'function')) {
+            var then = val.then;
+            if (typeof then === 'function') {
+              then.call(val, function (val) {
+                res(i, val);
+              }, reject);
+              return;
+            }
+          }
+          args[i] = val;
+          if (--remaining === 0) {
+            resolve(args);
+          }
+        } catch (ex) {
+          reject(ex);
+        }
+      }
+
+      for (var i = 0; i < args.length; i++) {
+        res(i, args[i]);
+      }
+    });
+  };
+
+  Promise.resolve = function (value) {
+    if (value && typeof value === 'object' && value.constructor === Promise) {
+      return value;
+    }
+
+    return new Promise(function (resolve) {
+      resolve(value);
+    });
+  };
+
+  Promise.reject = function (value) {
+    return new Promise(function (resolve, reject) {
+      reject(value);
+    });
+  };
+
+  Promise.race = function (values) {
+    return new Promise(function (resolve, reject) {
+      for (var i = 0, len = values.length; i < len; i++) {
+        values[i].then(resolve, reject);
+      }
+    });
+  };
+
+  // Use polyfill for setImmediate for performance gains
+  Promise._immediateFn = (typeof setImmediate === 'function' && function (fn) { setImmediate(fn); }) ||
+    function (fn) {
+      setTimeoutFunc(fn, 0);
+    };
+
+  Promise._unhandledRejectionFn = function _unhandledRejectionFn(err) {
+    if (typeof console !== 'undefined' && console) {
+      console.warn('Possible Unhandled Promise Rejection:', err); // eslint-disable-line no-console
+    }
+  };
+
+  /**
+   * Set the immediate function to execute callbacks
+   * @param fn {function} Function to execute
+   * @deprecated
+   */
+  Promise._setImmediateFn = function _setImmediateFn(fn) {
+    Promise._immediateFn = fn;
+  };
+
+  /**
+   * Change the function to execute on unhandled rejection
+   * @param {function} fn Function to execute on unhandled rejection
+   * @deprecated
+   */
+  Promise._setUnhandledRejectionFn = function _setUnhandledRejectionFn(fn) {
+    Promise._unhandledRejectionFn = fn;
+  };
+  
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports = Promise;
+  } else if (!root.Promise) {
+    root.Promise = Promise;
+  }
+
+})(this);
+
+
+
+/***/},{}],
+/***/[function (require, module, exports) {
+/*** [3] /Users/intent/Projects/dollar-js-ajax/node_modules/whatwg-fetch/fetch.js ***/
+
+(function(self) {
+  'use strict';
+
+  if (self.fetch) {
+    return
+  }
+
+  var support = {
+    searchParams: 'URLSearchParams' in self,
+    iterable: 'Symbol' in self && 'iterator' in Symbol,
+    blob: 'FileReader' in self && 'Blob' in self && (function() {
+      try {
+        new Blob()
+        return true
+      } catch(e) {
+        return false
+      }
+    })(),
+    formData: 'FormData' in self,
+    arrayBuffer: 'ArrayBuffer' in self
+  }
+
+  if (support.arrayBuffer) {
+    var viewClasses = [
+      '[object Int8Array]',
+      '[object Uint8Array]',
+      '[object Uint8ClampedArray]',
+      '[object Int16Array]',
+      '[object Uint16Array]',
+      '[object Int32Array]',
+      '[object Uint32Array]',
+      '[object Float32Array]',
+      '[object Float64Array]'
+    ]
+
+    var isDataView = function(obj) {
+      return obj && DataView.prototype.isPrototypeOf(obj)
+    }
+
+    var isArrayBufferView = ArrayBuffer.isView || function(obj) {
+      return obj && viewClasses.indexOf(Object.prototype.toString.call(obj)) > -1
+    }
+  }
+
+  function normalizeName(name) {
+    if (typeof name !== 'string') {
+      name = String(name)
+    }
+    if (/[^a-z0-9\-#$%&'*+.\^_`|~]/i.test(name)) {
+      throw new TypeError('Invalid character in header field name')
+    }
+    return name.toLowerCase()
+  }
+
+  function normalizeValue(value) {
+    if (typeof value !== 'string') {
+      value = String(value)
+    }
+    return value
+  }
+
+  // Build a destructive iterator for the value list
+  function iteratorFor(items) {
+    var iterator = {
+      next: function() {
+        var value = items.shift()
+        return {done: value === undefined, value: value}
+      }
+    }
+
+    if (support.iterable) {
+      iterator[Symbol.iterator] = function() {
+        return iterator
+      }
+    }
+
+    return iterator
+  }
+
+  function Headers(headers) {
+    this.map = {}
+
+    if (headers instanceof Headers) {
+      headers.forEach(function(value, name) {
+        this.append(name, value)
+      }, this)
+    } else if (Array.isArray(headers)) {
+      headers.forEach(function(header) {
+        this.append(header[0], header[1])
+      }, this)
+    } else if (headers) {
+      Object.getOwnPropertyNames(headers).forEach(function(name) {
+        this.append(name, headers[name])
+      }, this)
+    }
+  }
+
+  Headers.prototype.append = function(name, value) {
+    name = normalizeName(name)
+    value = normalizeValue(value)
+    var oldValue = this.map[name]
+    this.map[name] = oldValue ? oldValue+','+value : value
+  }
+
+  Headers.prototype['delete'] = function(name) {
+    delete this.map[normalizeName(name)]
+  }
+
+  Headers.prototype.get = function(name) {
+    name = normalizeName(name)
+    return this.has(name) ? this.map[name] : null
+  }
+
+  Headers.prototype.has = function(name) {
+    return this.map.hasOwnProperty(normalizeName(name))
+  }
+
+  Headers.prototype.set = function(name, value) {
+    this.map[normalizeName(name)] = normalizeValue(value)
+  }
+
+  Headers.prototype.forEach = function(callback, thisArg) {
+    for (var name in this.map) {
+      if (this.map.hasOwnProperty(name)) {
+        callback.call(thisArg, this.map[name], name, this)
+      }
+    }
+  }
+
+  Headers.prototype.keys = function() {
+    var items = []
+    this.forEach(function(value, name) { items.push(name) })
+    return iteratorFor(items)
+  }
+
+  Headers.prototype.values = function() {
+    var items = []
+    this.forEach(function(value) { items.push(value) })
+    return iteratorFor(items)
+  }
+
+  Headers.prototype.entries = function() {
+    var items = []
+    this.forEach(function(value, name) { items.push([name, value]) })
+    return iteratorFor(items)
+  }
+
+  if (support.iterable) {
+    Headers.prototype[Symbol.iterator] = Headers.prototype.entries
+  }
+
+  function consumed(body) {
+    if (body.bodyUsed) {
+      return Promise.reject(new TypeError('Already read'))
+    }
+    body.bodyUsed = true
+  }
+
+  function fileReaderReady(reader) {
+    return new Promise(function(resolve, reject) {
+      reader.onload = function() {
+        resolve(reader.result)
+      }
+      reader.onerror = function() {
+        reject(reader.error)
+      }
+    })
+  }
+
+  function readBlobAsArrayBuffer(blob) {
+    var reader = new FileReader()
+    var promise = fileReaderReady(reader)
+    reader.readAsArrayBuffer(blob)
+    return promise
+  }
+
+  function readBlobAsText(blob) {
+    var reader = new FileReader()
+    var promise = fileReaderReady(reader)
+    reader.readAsText(blob)
+    return promise
+  }
+
+  function readArrayBufferAsText(buf) {
+    var view = new Uint8Array(buf)
+    var chars = new Array(view.length)
+
+    for (var i = 0; i < view.length; i++) {
+      chars[i] = String.fromCharCode(view[i])
+    }
+    return chars.join('')
+  }
+
+  function bufferClone(buf) {
+    if (buf.slice) {
+      return buf.slice(0)
+    } else {
+      var view = new Uint8Array(buf.byteLength)
+      view.set(new Uint8Array(buf))
+      return view.buffer
+    }
+  }
+
+  function Body() {
+    this.bodyUsed = false
+
+    this._initBody = function(body) {
+      this._bodyInit = body
+      if (!body) {
+        this._bodyText = ''
+      } else if (typeof body === 'string') {
+        this._bodyText = body
+      } else if (support.blob && Blob.prototype.isPrototypeOf(body)) {
+        this._bodyBlob = body
+      } else if (support.formData && FormData.prototype.isPrototypeOf(body)) {
+        this._bodyFormData = body
+      } else if (support.searchParams && URLSearchParams.prototype.isPrototypeOf(body)) {
+        this._bodyText = body.toString()
+      } else if (support.arrayBuffer && support.blob && isDataView(body)) {
+        this._bodyArrayBuffer = bufferClone(body.buffer)
+        // IE 10-11 can't handle a DataView body.
+        this._bodyInit = new Blob([this._bodyArrayBuffer])
+      } else if (support.arrayBuffer && (ArrayBuffer.prototype.isPrototypeOf(body) || isArrayBufferView(body))) {
+        this._bodyArrayBuffer = bufferClone(body)
+      } else {
+        throw new Error('unsupported BodyInit type')
+      }
+
+      if (!this.headers.get('content-type')) {
+        if (typeof body === 'string') {
+          this.headers.set('content-type', 'text/plain;charset=UTF-8')
+        } else if (this._bodyBlob && this._bodyBlob.type) {
+          this.headers.set('content-type', this._bodyBlob.type)
+        } else if (support.searchParams && URLSearchParams.prototype.isPrototypeOf(body)) {
+          this.headers.set('content-type', 'application/x-www-form-urlencoded;charset=UTF-8')
+        }
+      }
+    }
+
+    if (support.blob) {
+      this.blob = function() {
+        var rejected = consumed(this)
+        if (rejected) {
+          return rejected
+        }
+
+        if (this._bodyBlob) {
+          return Promise.resolve(this._bodyBlob)
+        } else if (this._bodyArrayBuffer) {
+          return Promise.resolve(new Blob([this._bodyArrayBuffer]))
+        } else if (this._bodyFormData) {
+          throw new Error('could not read FormData body as blob')
+        } else {
+          return Promise.resolve(new Blob([this._bodyText]))
+        }
+      }
+
+      this.arrayBuffer = function() {
+        if (this._bodyArrayBuffer) {
+          return consumed(this) || Promise.resolve(this._bodyArrayBuffer)
+        } else {
+          return this.blob().then(readBlobAsArrayBuffer)
+        }
+      }
+    }
+
+    this.text = function() {
+      var rejected = consumed(this)
+      if (rejected) {
+        return rejected
+      }
+
+      if (this._bodyBlob) {
+        return readBlobAsText(this._bodyBlob)
+      } else if (this._bodyArrayBuffer) {
+        return Promise.resolve(readArrayBufferAsText(this._bodyArrayBuffer))
+      } else if (this._bodyFormData) {
+        throw new Error('could not read FormData body as text')
+      } else {
+        return Promise.resolve(this._bodyText)
+      }
+    }
+
+    if (support.formData) {
+      this.formData = function() {
+        return this.text().then(decode)
+      }
+    }
+
+    this.json = function() {
+      return this.text().then(JSON.parse)
+    }
+
+    return this
+  }
+
+  // HTTP methods whose capitalization should be normalized
+  var methods = ['DELETE', 'GET', 'HEAD', 'OPTIONS', 'POST', 'PUT']
+
+  function normalizeMethod(method) {
+    var upcased = method.toUpperCase()
+    return (methods.indexOf(upcased) > -1) ? upcased : method
+  }
+
+  function Request(input, options) {
+    options = options || {}
+    var body = options.body
+
+    if (input instanceof Request) {
+      if (input.bodyUsed) {
+        throw new TypeError('Already read')
+      }
+      this.url = input.url
+      this.credentials = input.credentials
+      if (!options.headers) {
+        this.headers = new Headers(input.headers)
+      }
+      this.method = input.method
+      this.mode = input.mode
+      if (!body && input._bodyInit != null) {
+        body = input._bodyInit
+        input.bodyUsed = true
+      }
+    } else {
+      this.url = String(input)
+    }
+
+    this.credentials = options.credentials || this.credentials || 'omit'
+    if (options.headers || !this.headers) {
+      this.headers = new Headers(options.headers)
+    }
+    this.method = normalizeMethod(options.method || this.method || 'GET')
+    this.mode = options.mode || this.mode || null
+    this.referrer = null
+
+    if ((this.method === 'GET' || this.method === 'HEAD') && body) {
+      throw new TypeError('Body not allowed for GET or HEAD requests')
+    }
+    this._initBody(body)
+  }
+
+  Request.prototype.clone = function() {
+    return new Request(this, { body: this._bodyInit })
+  }
+
+  function decode(body) {
+    var form = new FormData()
+    body.trim().split('&').forEach(function(bytes) {
+      if (bytes) {
+        var split = bytes.split('=')
+        var name = split.shift().replace(/\+/g, ' ')
+        var value = split.join('=').replace(/\+/g, ' ')
+        form.append(decodeURIComponent(name), decodeURIComponent(value))
+      }
+    })
+    return form
+  }
+
+  function parseHeaders(rawHeaders) {
+    var headers = new Headers()
+    rawHeaders.split(/\r?\n/).forEach(function(line) {
+      var parts = line.split(':')
+      var key = parts.shift().trim()
+      if (key) {
+        var value = parts.join(':').trim()
+        headers.append(key, value)
+      }
+    })
+    return headers
+  }
+
+  Body.call(Request.prototype)
+
+  function Response(bodyInit, options) {
+    if (!options) {
+      options = {}
+    }
+
+    this.type = 'default'
+    this.status = 'status' in options ? options.status : 200
+    this.ok = this.status >= 200 && this.status < 300
+    this.statusText = 'statusText' in options ? options.statusText : 'OK'
+    this.headers = new Headers(options.headers)
+    this.url = options.url || ''
+    this._initBody(bodyInit)
+  }
+
+  Body.call(Response.prototype)
+
+  Response.prototype.clone = function() {
+    return new Response(this._bodyInit, {
+      status: this.status,
+      statusText: this.statusText,
+      headers: new Headers(this.headers),
+      url: this.url
+    })
+  }
+
+  Response.error = function() {
+    var response = new Response(null, {status: 0, statusText: ''})
+    response.type = 'error'
+    return response
+  }
+
+  var redirectStatuses = [301, 302, 303, 307, 308]
+
+  Response.redirect = function(url, status) {
+    if (redirectStatuses.indexOf(status) === -1) {
+      throw new RangeError('Invalid status code')
+    }
+
+    return new Response(null, {status: status, headers: {location: url}})
+  }
+
+  self.Headers = Headers
+  self.Request = Request
+  self.Response = Response
+
+  self.fetch = function(input, init) {
+    return new Promise(function(resolve, reject) {
+      var request = new Request(input, init)
+      var xhr = new XMLHttpRequest()
+
+      xhr.onload = function() {
+        var options = {
+          status: xhr.status,
+          statusText: xhr.statusText,
+          headers: parseHeaders(xhr.getAllResponseHeaders() || '')
+        }
+        options.url = 'responseURL' in xhr ? xhr.responseURL : options.headers.get('X-Request-URL')
+        var body = 'response' in xhr ? xhr.response : xhr.responseText
+        resolve(new Response(body, options))
+      }
+
+      xhr.onerror = function() {
+        reject(new TypeError('Network request failed'))
+      }
+
+      xhr.ontimeout = function() {
+        reject(new TypeError('Network request failed'))
+      }
+
+      xhr.open(request.method, request.url, true)
+
+      if (request.credentials === 'include') {
+        xhr.withCredentials = true
+      }
+
+      if ('responseType' in xhr && support.blob) {
+        xhr.responseType = 'blob'
+      }
+
+      request.headers.forEach(function(value, name) {
+        xhr.setRequestHeader(name, value)
+      })
+
+      xhr.send(typeof request._bodyInit === 'undefined' ? null : request._bodyInit)
+    })
+  }
+  self.fetch.polyfill = true
+})(typeof self !== 'undefined' ? self : this);
+
+
+
+/***/},{}],
+/***/[function (require, module, exports) {
+/*** [4] /Users/intent/Projects/dollar-js-ajax/src/serialize.js ***/
+
 /*****************/
-/*  getOptions  */
+/*   serialize   */
 /*****************/
 
-function getOptions (url, data, success, dataType) {
+function serialize (params) {
+    var paramsType = typeof params;
+
+    if (paramsType === 'object') {
+        var arr = [];
+        for (key in params) {
+            if (params.hasOwnProperty(key)) {
+                arr.push(encodeURIComponent(key) + '=' + encodeURIComponent(params[key]));
+            }
+        }
+        return arr.join('&');
+
+    } else if (paramsType === 'string') {
+        return params;
+    }
+
+    return '';
+}
+
+module.exports = serialize;
+
+
+
+/***/},{}],
+/***/[function (require, module, exports) {
+/*** [5] /Users/intent/Projects/dollar-js-ajax/src/get.js ***/
+
+/*****************/
+/*    $.get()    */
+/*****************/
+
+var ajax = require('./ajax.js');
+var parseOptions = require('./parseOptions.js');
+
+function get (url, data, success, dataType) {
+    var opt = parseOptions(url, data, success, dataType);
+    opt.method = 'get';
+    return ajax(opt);
+}
+
+module.exports = get;
+
+
+
+/***/},{"./ajax.js":1,"./parseOptions.js":6}],
+/***/[function (require, module, exports) {
+/*** [6] /Users/intent/Projects/dollar-js-ajax/src/parseOptions.js ***/
+
+/*****************/
+/*  parseOptions  */
+/*****************/
+
+function parseOptions (url, data, success, dataType) {
     var options = {};
 
     if (typeof url === 'object') {
@@ -154,65 +929,127 @@ function getOptions (url, data, success, dataType) {
     return options;
 }
 
-/*****************/
-/*    $.get()    */
-/*****************/
+module.exports = parseOptions;
 
-function get (url, data, success, dataType) {
-    var opt = getOptions(url, data, success, dataType);
-    ajax(opt);
-}
+
+
+/***/},{}],
+/***/[function (require, module, exports) {
+/*** [7] /Users/intent/Projects/dollar-js-ajax/src/post.js ***/
 
 /*****************/
 /*   $.post()   */
 /*****************/
 
+var ajax = require('./ajax.js');
+var parseOptions = require('./parseOptions.js');
+
 function post (url, data, success, dataType) {
-    var opt = getOptions(url, data, success, dataType);
-    opt.type = 'POST';
-    ajax(opt);
+    var opt = parseOptions(url, data, success, dataType);
+    opt.method = 'post';
+    return ajax(opt);
 }
+
+module.exports = post;
+
+
+
+/***/},{"./ajax.js":1,"./parseOptions.js":6}],
+/***/[function (require, module, exports) {
+/*** [8] /Users/intent/Projects/dollar-js-ajax/src/getJSON.js ***/
 
 /*****************/
 /*  $.getJSON()  */
 /*****************/
 
+var ajax = require('./ajax.js');
+var parseOptions = require('./parseOptions.js');
+
 function getJSON (url, data, success) {
-    var opt = getOptions(url, data, success);
-    opt.dataType = 'json';
-    ajax(opt);
+    var opt = parseOptions(url, data, success, 'json');
+    return ajax(opt);
 }
+
+module.exports = getJSON;
+
+
+
+/***/},{"./ajax.js":1,"./parseOptions.js":6}],
+/***/[function (require, module, exports) {
+/*** [9] /Users/intent/Projects/dollar-js-ajax/src/getScript.js ***/
 
 /*****************/
 /* $.getScript() */
 /*****************/
 
-function getScript (url, success) {
-    // script element
-    // onload
+function getScript (url, success, error) {
+    var d = document;
+    var t = d.getElementsByTagName('head')[0] || d.getElementsByTagName('body')[0] || d.documentElement;
+    var s = d.createElement('script');
+    s.async = true;
+    s.type = 'text/javascript';
+    s.src = url;
+
+    if (typeof success === 'function') {
+        s.onload = function () {
+            success.call(s);
+        };
+    }
+
+    if (typeof error === 'function') {
+        s.onerror = function (err) {
+            error.call(s, err);
+        };
+    }
+
+    return t.appendChild(s);
 }
 
-/****************/
-/*    EXPORT    */
-/****************/
+module.exports = getScript;
 
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = {
-        ajax: ajax,
-        get: get,
-        post: post,
-        getJSON: getJSON,
-        getScript: getScript
-    };
 
-} else if (typeof window !== 'undefined') {
-    var $ = window.$;
-    $.ajax = ajax;
-    $.get = get;
-    $.post = post;
-    $.getJSON = getJSON;
-    $.getScript = getScript;
+
+/***/},{}]
+/**/]);
+function require(modules, as) {
+    var cache = {};
+    var mocks = {};
+
+    function __require_lookup (id) {
+        function __require_in_module (relpath) {
+            var packedId = modules[id][1][relpath];
+            if (!packedId) throw 'Missing ' + relpath;
+            return mocks[packedId] || __require_lookup(packedId);
+        }
+
+        __require_in_module.as = as;
+
+        function _bundl_mock (relpath, mock) {
+            var packedId = modules[id][1][relpath];
+            mocks[packedId] = mock;
+        }
+
+        _bundl_mock.stopAll = function () {
+            cache = {};
+            mocks = {};
+        };
+
+        __require_in_module.cache = {
+            mock: _bundl_mock,
+            clear: function () {
+                cache = {};
+            }
+        };
+        
+        if(!cache[id]) {
+            var m = cache[id] = {exports:{}};
+            modules[id][0].call(m.exports, __require_in_module, m, m.exports, modules);
+        }
+
+        return cache[id] ? cache[id].exports : {};
+    }
+
+    __require_lookup(0);
 }
+})(typeof global !== "undefined" ? global : window, window, document);
 
-
-})(typeof window !== 'undefined' ? window : this);

@@ -2,6 +2,10 @@
 /*   $.ajax()   */
 /*****************/
 
+global.Promise = global.Promise || require('promise-polyfill');
+var fetch = global.fetch || require('whatwg-fetch').fetch;
+var serialize = require('./serialize.js');
+
 function ajax (url, settings) {
     var opt = typeof settings === 'object' ? settings : {};
 
@@ -40,7 +44,7 @@ function ajax (url, settings) {
     };
 
     var initOptions = {
-        method: opt.method || 'get',
+        method: opt.method || opt.type || 'get',
     };
 
     if (typeof opt.headers === 'object') {
@@ -56,7 +60,7 @@ function ajax (url, settings) {
         initOptions.body = typeof opt.data === 'object' ? JSON.stringify(opt.data) : opt.data;
     }
 
-    fetch(opt.url, initOptions)
+    return fetch(opt.url, initOptions)
         .then(function (response) {
             if (response && response.ok) {
                 var contentType = opt.dataType ? dataTypes[opt.dataType] : response.headers.get('Content-Type');
@@ -81,3 +85,5 @@ function ajax (url, settings) {
             opt.complete('error', {});
         });
 }
+
+module.exports = ajax;
